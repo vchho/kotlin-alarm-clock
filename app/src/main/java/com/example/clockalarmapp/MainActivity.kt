@@ -22,7 +22,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -225,17 +227,24 @@ fun AlarmEditorDialog(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.7f)).padding(16.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.7f))
+            .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         Card(
-            modifier = Modifier.fillMaxWidth(0.95f),
+            modifier = Modifier
+                .fillMaxWidth(0.95f)
+                .verticalScroll(rememberScrollState()),
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(containerColor = Color(0xFF121B2E))
         ) {
             Column(
-                modifier = Modifier.fillMaxWidth().padding(20.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
@@ -249,7 +258,7 @@ fun AlarmEditorDialog(
                 TextField(
                     value = label,
                     onValueChange = { label = it },
-                    placeholder = { Text("Alarm label (optional)") },
+                    placeholder = { Text(text = "Alarm label (optional)") },
                     modifier = Modifier.fillMaxWidth(),
                     colors = TextFieldDefaults.colors(
                         unfocusedContainerColor = Color(0xFF1F2B46),
@@ -260,10 +269,22 @@ fun AlarmEditorDialog(
                     )
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                Text(
+                    text = "Time",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    modifier = Modifier.align(Alignment.Start)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                
                 TimePicker(
                     state = timePickerState,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp),
                     colors = androidx.compose.material3.TimePickerDefaults.colors(
                         clockDialColor = Color(0xFF1F2B46),
                         selectorColor = Color(0xFF7C9BFF),
@@ -278,53 +299,63 @@ fun AlarmEditorDialog(
                         clockDialUnselectedContentColor = Color(0xFFCED9FF)
                     )
                 )
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 Text(
                     text = "Repeat",
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
                     modifier = Modifier.align(Alignment.Start)
                 )
+                Spacer(modifier = Modifier.height(8.dp))
+                
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     FilterChip(
                         selected = repeatMode == AlarmRepeatMode.DAILY,
                         onClick = { repeatMode = AlarmRepeatMode.DAILY },
-                        label = { Text("Daily") }
+                        label = { Text(text = "Daily") }
                     )
                     FilterChip(
                         selected = repeatMode == AlarmRepeatMode.SPECIFIC_DAYS,
                         onClick = { repeatMode = AlarmRepeatMode.SPECIFIC_DAYS },
-                        label = { Text("Days") }
+                        label = { Text(text = "Days") }
                     )
                     FilterChip(
                         selected = repeatMode == AlarmRepeatMode.EVERY_OTHER_DAY,
                         onClick = { repeatMode = AlarmRepeatMode.EVERY_OTHER_DAY },
-                        label = { Text("Every Other") }
+                        label = { Text(text = "Every Other") }
                     )
                 }
 
                 if (repeatMode == AlarmRepeatMode.SPECIFIC_DAYS || repeatMode == AlarmRepeatMode.EVERY_OTHER_DAY) {
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "Select Days",
                         color = Color(0xFF9CB6FF),
                         fontSize = 12.sp
                     )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    val labels = mapOf(
+                        DayOfWeek.MONDAY to "Mon", DayOfWeek.TUESDAY to "Tue",
+                        DayOfWeek.WEDNESDAY to "Wed", DayOfWeek.THURSDAY to "Thu",
+                        DayOfWeek.FRIDAY to "Fri", DayOfWeek.SATURDAY to "Sat",
+                        DayOfWeek.SUNDAY to "Sun"
+                    )
+                    
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        val labels = mapOf(
-                            DayOfWeek.MONDAY to "Mon", DayOfWeek.TUESDAY to "Tue",
-                            DayOfWeek.WEDNESDAY to "Wed", DayOfWeek.THURSDAY to "Thu",
-                            DayOfWeek.FRIDAY to "Fri", DayOfWeek.SATURDAY to "Sat",
-                            DayOfWeek.SUNDAY to "Sun"
-                        )
-                        DayOfWeek.values().forEach { day ->
+                        DayOfWeek.values().slice(0..2).forEach { day ->
                             FilterChip(
                                 selected = day in selectedDays,
                                 onClick = {
@@ -334,8 +365,52 @@ fun AlarmEditorDialog(
                                         selectedDays + day
                                     }
                                 },
-                                label = { Text(labels[day] ?: "", fontSize = 10.sp) },
-                                modifier = Modifier.size(width = 46.dp, height = 32.dp)
+                                label = { Text(text = labels[day] ?: "", fontSize = 10.sp) },
+                                modifier = Modifier.size(width = 44.dp, height = 32.dp)
+                            )
+                        }
+                    }
+                    
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        DayOfWeek.values().slice(3..5).forEach { day ->
+                            FilterChip(
+                                selected = day in selectedDays,
+                                onClick = {
+                                    selectedDays = if (day in selectedDays) {
+                                        selectedDays - day
+                                    } else {
+                                        selectedDays + day
+                                    }
+                                },
+                                label = { Text(text = labels[day] ?: "", fontSize = 10.sp) },
+                                modifier = Modifier.size(width = 44.dp, height = 32.dp)
+                            )
+                        }
+                    }
+                    
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        DayOfWeek.values().slice(6..6).forEach { day ->
+                            FilterChip(
+                                selected = day in selectedDays,
+                                onClick = {
+                                    selectedDays = if (day in selectedDays) {
+                                        selectedDays - day
+                                    } else {
+                                        selectedDays + day
+                                    }
+                                },
+                                label = { Text(text = labels[day] ?: "", fontSize = 10.sp) },
+                                modifier = Modifier.size(width = 44.dp, height = 32.dp)
                             )
                         }
                     }
@@ -349,11 +424,16 @@ fun AlarmEditorDialog(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                     Button(
                         onClick = onDismiss,
-                        modifier = Modifier.weight(1f).height(48.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Text(text = "Cancel")
@@ -384,7 +464,9 @@ fun AlarmEditorDialog(
                             repository.saveAlarm(alarmToSave)
                             onDismiss()
                         },
-                        modifier = Modifier.weight(1f).height(48.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Text(text = "Save")
@@ -447,7 +529,9 @@ fun AlarmCard(
         colors = CardDefaults.cardColors(containerColor = Color(0xFF121B2E))
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
