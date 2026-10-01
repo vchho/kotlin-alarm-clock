@@ -12,13 +12,20 @@ data class AlarmItem(
     val repeatMode: AlarmRepeatMode = AlarmRepeatMode.DAILY,
     val selectedDays: Set<DayOfWeek> = DayOfWeek.values().toSet(),
     val everyOtherDayStartDate: Long = System.currentTimeMillis(),
-    val label: String = ""
+    val label: String = "",
+    val notificationMode: AlarmNotificationMode = AlarmNotificationMode.SOUND_AND_VIBRATION
 )
 
 enum class AlarmRepeatMode {
     DAILY,
     SPECIFIC_DAYS,
     EVERY_OTHER_DAY
+}
+
+enum class AlarmNotificationMode {
+    SOUND,
+    VIBRATION,
+    SOUND_AND_VIBRATION
 }
 
 fun AlarmItem.shouldTriggerToday(currentDay: DayOfWeek, currentDate: Long): Boolean {
