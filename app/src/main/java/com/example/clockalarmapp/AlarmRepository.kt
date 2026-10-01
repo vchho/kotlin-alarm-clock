@@ -70,6 +70,7 @@ class AlarmRepository(context: Context) {
         obj.put("repeatMode", alarm.repeatMode.name)
         obj.put("label", alarm.label)
         obj.put("everyOtherDayStartDate", alarm.everyOtherDayStartDate)
+        obj.put("notificationMode", alarm.notificationMode.name)
         val daysArray = JSONArray()
         alarm.selectedDays.forEach { day ->
             daysArray.put(day.value)
@@ -86,6 +87,12 @@ class AlarmRepository(context: Context) {
         val repeatMode = AlarmRepeatMode.valueOf(obj.getString("repeatMode"))
         val label = obj.optString("label", "")
         val everyOtherDayStartDate = obj.optLong("everyOtherDayStartDate", System.currentTimeMillis())
+        val notificationModeName = obj.optString("notificationMode", AlarmNotificationMode.SOUND_AND_VIBRATION.name)
+        val notificationMode = try {
+            AlarmNotificationMode.valueOf(notificationModeName)
+        } catch (e: Exception) {
+            AlarmNotificationMode.SOUND_AND_VIBRATION
+        }
         val daysArray = obj.getJSONArray("selectedDays")
         val selectedDays = mutableSetOf<DayOfWeek>()
         for (i in 0 until daysArray.length()) {
@@ -100,7 +107,8 @@ class AlarmRepository(context: Context) {
             repeatMode = repeatMode,
             selectedDays = selectedDays,
             everyOtherDayStartDate = everyOtherDayStartDate,
-            label = label
+            label = label,
+            notificationMode = notificationMode
         )
     }
 }
