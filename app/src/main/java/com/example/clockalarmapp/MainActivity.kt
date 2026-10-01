@@ -122,25 +122,43 @@ fun ClockAlarmDashboardScreen(context: Context) {
                 )
             )
     ) {
-        Column(Modifier.fillMaxSize().padding(16.dp)) {
+        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             Card(
-                Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                RoundedCornerShape(28.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                shape = RoundedCornerShape(28.dp),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF101C34))
             ) {
                 Column(
-                    Modifier.fillMaxWidth().padding(24.dp),
+                    modifier = Modifier.fillMaxWidth().padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text("Current Time", color = Color(0xFF9CB6FF))
-                    Spacer(Modifier.height(12.dp))
-                    Text(currentTime.value, color = Color.White, fontSize = 42.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = "Current Time",
+                        color = Color(0xFF9CB6FF),
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = currentTime.value,
+                        color = Color.White,
+                        fontSize = 42.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
 
-            Text("Alarms", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, Modifier.padding(bottom = 12.dp))
+            Text(
+                text = "Alarms",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
 
-            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 items(alarms, key = { it.id }) { alarm ->
                     AlarmCard(alarm, repository, context)
                 }
@@ -152,7 +170,7 @@ fun ClockAlarmDashboardScreen(context: Context) {
             modifier = Modifier.align(Alignment.BottomEnd).padding(24.dp),
             containerColor = Color(0xFF7C9BFF)
         ) {
-            Icon(Icons.Default.Add, "Add Alarm", tint = Color.White)
+            Icon(Icons.Default.Add, contentDescription = "Add Alarm", tint = Color.White)
         }
     }
 
@@ -171,18 +189,26 @@ fun AddAlarmDialog(repository: AlarmRepository, context: Context, onDismiss: () 
     var startDate by remember { mutableStateOf(todayAtStartOfDay()) }
 
     Column(
-        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.7f)).padding(16.dp),
+        modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.7f)).padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         Card(
-            Modifier.fillMaxWidth(0.95f),
-            RoundedCornerShape(24.dp),
+            modifier = Modifier.fillMaxWidth(0.95f),
+            shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(containerColor = Color(0xFF121B2E))
         ) {
-            Column(Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Add Alarm", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                Spacer(Modifier.height(16.dp))
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Add Alarm",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.height(16.dp))
 
                 TextField(
                     value = label,
@@ -198,29 +224,80 @@ fun AddAlarmDialog(repository: AlarmRepository, context: Context, onDismiss: () 
                     )
                 )
 
-                Spacer(Modifier.height(16.dp))
-                TimePicker(state = timePickerState, modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+                TimePicker(
+                    state = timePickerState,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = androidx.compose.material3.TimePickerDefaults.colors(
+                        clockDialColor = Color(0xFF1F2B46),
+                        selectorColor = Color(0xFF7C9BFF),
+                        containerColor = Color(0xFF101C34),
+                        periodSelectorSelectedContainerColor = Color(0xFF7C9BFF),
+                        periodSelectorSelectedContentColor = Color.White,
+                        periodSelectorUnselectedContentColor = Color(0xFFB9C9FF),
+                        timeSelectorSelectedContainerColor = Color(0xFF7C9BFF),
+                        timeSelectorSelectedContentColor = Color.White,
+                        timeSelectorUnselectedContentColor = Color(0xFFB9C9FF),
+                        clockDialSelectedContentColor = Color.White,
+                        clockDialUnselectedContentColor = Color(0xFFCED9FF)
+                    )
+                )
+                Spacer(modifier = Modifier.height(16.dp))
 
-                Text("Repeat", color = Color.White, fontWeight = FontWeight.Bold, Modifier.align(Alignment.Start))
-                Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(repeatMode == AlarmRepeatMode.DAILY, { repeatMode = AlarmRepeatMode.DAILY }, label = { Text("Daily") })
-                    FilterChip(repeatMode == AlarmRepeatMode.SPECIFIC_DAYS, { repeatMode = AlarmRepeatMode.SPECIFIC_DAYS }, label = { Text("Days") })
-                    FilterChip(repeatMode == AlarmRepeatMode.EVERY_OTHER_DAY, { repeatMode = AlarmRepeatMode.EVERY_OTHER_DAY }, label = { Text("Every Other") })
+                Text(
+                    text = "Repeat",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.align(Alignment.Start)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilterChip(
+                        selected = repeatMode == AlarmRepeatMode.DAILY,
+                        onClick = { repeatMode = AlarmRepeatMode.DAILY },
+                        label = { Text("Daily") }
+                    )
+                    FilterChip(
+                        selected = repeatMode == AlarmRepeatMode.SPECIFIC_DAYS,
+                        onClick = { repeatMode = AlarmRepeatMode.SPECIFIC_DAYS },
+                        label = { Text("Days") }
+                    )
+                    FilterChip(
+                        selected = repeatMode == AlarmRepeatMode.EVERY_OTHER_DAY,
+                        onClick = { repeatMode = AlarmRepeatMode.EVERY_OTHER_DAY },
+                        label = { Text("Every Other") }
+                    )
                 }
 
                 if (repeatMode == AlarmRepeatMode.SPECIFIC_DAYS || repeatMode == AlarmRepeatMode.EVERY_OTHER_DAY) {
-                    Text("Select Days", color = Color(0xFF9CB6FF), fontSize = 12.sp)
-                    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Select Days",
+                        color = Color(0xFF9CB6FF),
+                        fontSize = 12.sp
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
                         val labels = mapOf(
-                            DayOfWeek.MONDAY to "Mon", DayOfWeek.TUESDAY to "Tue", DayOfWeek.WEDNESDAY to "Wed",
-                            DayOfWeek.THURSDAY to "Thu", DayOfWeek.FRIDAY to "Fri", DayOfWeek.SATURDAY to "Sat",
+                            DayOfWeek.MONDAY to "Mon", DayOfWeek.TUESDAY to "Tue",
+                            DayOfWeek.WEDNESDAY to "Wed", DayOfWeek.THURSDAY to "Thu",
+                            DayOfWeek.FRIDAY to "Fri", DayOfWeek.SATURDAY to "Sat",
                             DayOfWeek.SUNDAY to "Sun"
                         )
                         DayOfWeek.values().forEach { day ->
                             FilterChip(
                                 selected = day in selectedDays,
-                                onClick = { selectedDays = if (day in selectedDays) selectedDays - day else selectedDays + day },
+                                onClick = {
+                                    selectedDays = if (day in selectedDays) {
+                                        selectedDays - day
+                                    } else {
+                                        selectedDays + day
+                                    }
+                                },
                                 label = { Text(labels[day] ?: "", fontSize = 10.sp) },
                                 modifier = Modifier.size(width = 46.dp, height = 32.dp)
                             )
@@ -229,16 +306,22 @@ fun AddAlarmDialog(repository: AlarmRepository, context: Context, onDismiss: () 
                 }
 
                 if (repeatMode == AlarmRepeatMode.EVERY_OTHER_DAY) {
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     StartDatePicker(
                         selectedDate = startDate,
                         onDateSelected = { startDate = it }
                     )
                 }
 
-                Spacer(Modifier.height(20.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(onClick = onDismiss, Modifier.weight(1f).height(48.dp)) { Text("Cancel") }
+                Spacer(modifier = Modifier.height(20.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Cancel")
+                    }
                     Button(
                         onClick = {
                             val alarm = AlarmItem(
@@ -251,15 +334,24 @@ fun AddAlarmDialog(repository: AlarmRepository, context: Context, onDismiss: () 
                                 label = label
                             )
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                                ContextCompat.checkSelfPermission(
+                                    context,
+                                    Manifest.permission.POST_NOTIFICATIONS
+                                ) != PackageManager.PERMISSION_GRANTED
                             ) {
-                                (context as? Activity)?.requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 100)
+                                (context as? Activity)?.requestPermissions(
+                                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                                    100
+                                )
                             }
                             repository.saveAlarm(alarm)
                             onDismiss()
                         },
-                        Modifier.weight(1f).height(48.dp)
-                    ) { Text("Save") }
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Save")
+                    }
                 }
             }
         }
@@ -295,34 +387,77 @@ private fun StartDatePicker(selectedDate: Long, onDateSelected: (Long) -> Unit) 
         },
         modifier = Modifier.fillMaxWidth()
     ) {
-        Icon(Icons.Default.CalendarMonth, contentDescription = null, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.size(8.dp))
+        Icon(
+            Icons.Default.CalendarMonth,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp)
+        )
+        Spacer(modifier = Modifier.size(8.dp))
         Text("Start date: $dateText")
     }
 }
 
 @Composable
 fun AlarmCard(alarm: AlarmItem, repository: AlarmRepository, context: Context) {
-    Card(Modifier.fillMaxWidth(), RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF121B2E))) {
-        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(formatClock(alarm.hour, alarm.minute), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                if (alarm.label.isNotEmpty()) Text(alarm.label, color = Color(0xFF92D5C3), fontSize = 12.sp)
-                Text(getRepeatText(alarm), color = Color(0xFF9CB6FF), fontSize = 11.sp)
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF121B2E))
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = formatClock(alarm.hour, alarm.minute),
+                    color = Color.White,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                if (alarm.label.isNotEmpty()) {
+                    Text(
+                        text = alarm.label,
+                        color = Color(0xFF92D5C3),
+                        fontSize = 12.sp
+                    )
+                }
+                Text(
+                    text = getRepeatText(alarm),
+                    color = Color(0xFF9CB6FF),
+                    fontSize = 11.sp
+                )
             }
-            Switch(alarm.enabled, { repository.saveAlarm(alarm.copy(enabled = it)) })
-            IconButton({ AlarmScheduler.cancelAlarm(context, alarm.id); repository.deleteAlarm(alarm.id) }) {
-                Icon(Icons.Default.Delete, "Delete", tint = Color(0xFFFF6B6B), modifier = Modifier.size(20.dp))
+            Switch(
+                checked = alarm.enabled,
+                onCheckedChange = { repository.saveAlarm(alarm.copy(enabled = it)) }
+            )
+            IconButton(
+                onClick = {
+                    AlarmScheduler.cancelAlarm(context, alarm.id)
+                    repository.deleteAlarm(alarm.id)
+                }
+            ) {
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = "Delete",
+                    tint = Color(0xFFFF6B6B),
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
     }
 }
 
 private fun todayAtStartOfDay(): Long = Calendar.getInstance().apply {
-    set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+    set(Calendar.HOUR_OF_DAY, 0)
+    set(Calendar.MINUTE, 0)
+    set(Calendar.SECOND, 0)
+    set(Calendar.MILLISECOND, 0)
 }.timeInMillis
 
-private fun getCurrentTime(): String = SimpleDateFormat("hh:mm:ss a", Locale.getDefault()).format(Calendar.getInstance().time)
+private fun getCurrentTime(): String =
+    SimpleDateFormat("hh:mm:ss a", Locale.getDefault()).format(Calendar.getInstance().time)
 
 private fun formatClock(hour: Int, minute: Int): String {
     val suffix = if (hour >= 12) "PM" else "AM"
@@ -330,16 +465,22 @@ private fun formatClock(hour: Int, minute: Int): String {
     return "${convertedHour}:${String.format("%02d", minute)} $suffix"
 }
 
+private fun formatDate(timeInMillis: Long): String =
+    SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(timeInMillis)
+
 private fun getRepeatText(alarm: AlarmItem): String {
     val labels = mapOf(
-        DayOfWeek.MONDAY to "Mon", DayOfWeek.TUESDAY to "Tue", DayOfWeek.WEDNESDAY to "Wed",
-        DayOfWeek.THURSDAY to "Thu", DayOfWeek.FRIDAY to "Fri", DayOfWeek.SATURDAY to "Sat", DayOfWeek.SUNDAY to "Sun"
+        DayOfWeek.MONDAY to "Mon", DayOfWeek.TUESDAY to "Tue",
+        DayOfWeek.WEDNESDAY to "Wed", DayOfWeek.THURSDAY to "Thu",
+        DayOfWeek.FRIDAY to "Fri", DayOfWeek.SATURDAY to "Sat",
+        DayOfWeek.SUNDAY to "Sun"
     )
     return when (alarm.repeatMode) {
         AlarmRepeatMode.DAILY -> "Daily"
-        AlarmRepeatMode.SPECIFIC_DAYS -> "On: " + alarm.selectedDays.sortedBy { it.value }.mapNotNull(labels::get).joinToString(", ")
-        AlarmRepeatMode.EVERY_OTHER_DAY -> "Every other: " + alarm.selectedDays.sortedBy { it.value }.mapNotNull(labels::get).joinToString(", ") + " from " + formatDate(alarm.everyOtherDayStartDate)
+        AlarmRepeatMode.SPECIFIC_DAYS ->
+            "On: " + alarm.selectedDays.sortedBy { it.value }.mapNotNull(labels::get).joinToString(", ")
+        AlarmRepeatMode.EVERY_OTHER_DAY ->
+            "Every other: " + alarm.selectedDays.sortedBy { it.value }.mapNotNull(labels::get).joinToString(", ") +
+                    " from " + formatDate(alarm.everyOtherDayStartDate)
     }
 }
-
-private fun formatDate(timeInMillis: Long): String = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(timeInMillis)
