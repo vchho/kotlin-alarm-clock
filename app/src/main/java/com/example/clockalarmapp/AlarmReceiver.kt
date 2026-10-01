@@ -8,27 +8,26 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
-import java.util.Calendar
-import java.util.concurrent.TimeUnit
 
 class AlarmReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
+        val alarmId = intent.getLongExtra("alarm_id", 0L)
         val hour = intent.getIntExtra("hour", 8)
         val minute = intent.getIntExtra("minute", 0)
-        val mode = intent.getStringExtra("mode")?.let { AlarmMode.valueOf(it) } ?: AlarmMode.DAILY
+        val label = intent.getStringExtra("label") ?: ""
 
-        showNotification(context)
+        showNotification(context, label, hour, minute)
 
-        val nextTrigger = when (mode) {
-            AlarmMode.EVERY_OTHER_DAY -> System.currentTimeMillis() + TimeUnit.DAYS.toMillis(2)
-            AlarmMode.DAILY -> getNextDailyTrigger(hour, minute)
+        // Reschedule the alarm for the next occurrence
+        val repository = AlarmRepository(context)
+        val alarm = repository.alarms.value.find { it.id == alarmId }
+        if (alarm != null) {
+            AlarmScheduler.scheduleAlarm(context, alarm)
         }
-
-        AlarmScheduler.scheduleAtTime(context, nextTrigger, hour, minute, mode)
     }
 
-    private fun showNotification(context: Context) {
+    private fun showNotification(context: Context, label: String, hour: Int, minute: Int) {
         val notificationManager = context.getSystemService(NotificationManager::class.java)
         val channelId = "alarm_channel"
 
@@ -52,31 +51,27 @@ class AlarmReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
+        val alarmText = if (label.isNotEmpty()) {
+            "$label - ${formatClock(hour, minute)}"
+        } else {
+            formatClock(hour, minute)
+        }
+
         val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentTitle("Alarm")
-            .setContentText("Wake up! Your alarm is ringing.")
+            .setContentText(alarmText)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
             .build()
 
-        notificationManager.notify(1, notification)
+        notificationManager.notify(System.currentTimeMillis().toInt(), notification)
     }
 
-    private fun getNextDailyTrigger(hour: Int, minute: Int): Long {
-        val now = Calendar.getInstance()
-        val next = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, hour)
-            set(Calendar.MINUTE, minute)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }
-
-        if (next.timeInMillis <= now.timeInMillis) {
-            next.add(Calendar.DAY_OF_YEAR, 1)
-        }
-
-        return next.timeInMillis
+    private fun formatClock(hour: Int, minute: Int): String {
+        val suffix = if (hour >= 12) "PM" else "AM"
+        val convertedHour = if (hour % 12 == 0) 12 else hour % 12
+        return "${convertedHour}:${String.format("%02d", minute)} $suffix"
     }
 }

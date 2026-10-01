@@ -9,31 +9,28 @@ import android.provider.Settings
 import java.util.Calendar
 
 object AlarmScheduler {
-    private const val REQUEST_CODE = 1001
-    private const val ACTION_ALARM = "com.example.clockalarmapp.ALARM"
 
-    fun scheduleNext(context: Context, hour: Int, minute: Int, mode: AlarmMode) {
-        val triggerTime = getNextTriggerTime(hour, minute, mode)
-        scheduleAtTime(context, triggerTime, hour, minute, mode)
-    }
+    fun scheduleAlarm(context: Context, alarm: AlarmItem) {
+        if (!alarm.enabled) {
+            cancelAlarm(context, alarm.id)
+            return
+        }
 
-    fun scheduleAtTime(
-        context: Context,
-        triggerTime: Long,
-        hour: Int,
-        minute: Int,
-        mode: AlarmMode
-    ) {
+        val triggerTime = getNextTriggerTime(alarm)
+        val requestCode = alarm.id.toInt()
+
         val intent = Intent(context, AlarmReceiver::class.java).apply {
-            action = ACTION_ALARM
-            putExtra("hour", hour)
-            putExtra("minute", minute)
-            putExtra("mode", mode.name)
+            action = "com.example.clockalarmapp.ALARM"
+            putExtra("alarm_id", alarm.id)
+            putExtra("hour", alarm.hour)
+            putExtra("minute", alarm.minute)
+            putExtra("label", alarm.label)
+            putExtra("repeat_mode", alarm.repeatMode.name)
         }
 
         val pendingIntent = PendingIntent.getBroadcast(
             context,
-            REQUEST_CODE,
+            requestCode,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -54,14 +51,14 @@ object AlarmScheduler {
         )
     }
 
-    fun cancel(context: Context) {
+    fun cancelAlarm(context: Context, alarmId: Long) {
         val intent = Intent(context, AlarmReceiver::class.java).apply {
-            action = ACTION_ALARM
+            action = "com.example.clockalarmapp.ALARM"
         }
 
         val pendingIntent = PendingIntent.getBroadcast(
             context,
-            REQUEST_CODE,
+            alarmId.toInt(),
             intent,
             PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
         )
@@ -72,19 +69,43 @@ object AlarmScheduler {
         }
     }
 
-    private fun getNextTriggerTime(hour: Int, minute: Int, mode: AlarmMode): Long {
+    private fun getNextTriggerTime(alarm: AlarmItem): Long {
         val now = Calendar.getInstance()
         val target = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, hour)
-            set(Calendar.MINUTE, minute)
+            set(Calendar.HOUR_OF_DAY, alarm.hour)
+            set(Calendar.MINUTE, alarm.minute)
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
         }
 
+        // If the time has already passed today, start checking from tomorrow
         if (target.timeInMillis <= now.timeInMillis) {
-            target.add(Calendar.DAY_OF_YEAR, if (mode == AlarmMode.EVERY_OTHER_DAY) 1 else 1)
+            target.add(Calendar.DAY_OF_YEAR, 1)
+        }
+
+        // Find the next day this alarm should trigger
+        while (!alarm.shouldTriggerToday(
+            target.get(Calendar.DAY_OF_WEEK).toJavaDayOfWeek(),
+            target.timeInMillis
+        )) {
+            target.add(Calendar.DAY_OF_YEAR, 1)
         }
 
         return target.timeInMillis
+    }
+}
+
+private fun Int.toJavaDayOfWeek(): java.time.DayOfWeek {
+    // Calendar.DAY_OF_WEEK: SUNDAY = 1, MONDAY = 2, ..., SATURDAY = 7
+    // DayOfWeek: MONDAY = 1, TUESDAY = 2, ..., SUNDAY = 7
+    return when (this) {
+        Calendar.MONDAY -> java.time.DayOfWeek.MONDAY
+        Calendar.TUESDAY -> java.time.DayOfWeek.TUESDAY
+        Calendar.WEDNESDAY -> java.time.DayOfWeek.WEDNESDAY
+        Calendar.THURSDAY -> java.time.DayOfWeek.THURSDAY
+        Calendar.FRIDAY -> java.time.DayOfWeek.FRIDAY
+        Calendar.SATURDAY -> java.time.DayOfWeek.SATURDAY
+        Calendar.SUNDAY -> java.time.DayOfWeek.SUNDAY
+        else -> java.time.DayOfWeek.MONDAY
     }
 }
