@@ -27,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -96,6 +97,7 @@ fun ClockAlarmDashboardTheme(content: @Composable () -> Unit) {
 fun ClockAlarmDashboardScreen(context: Context) {
     val currentTime = remember { mutableStateOf(getCurrentTime()) }
     var showAddAlarmDialog by remember { mutableStateOf(false) }
+    var editingAlarm by remember { mutableStateOf<AlarmItem?>(null) }
     val repository = remember { AlarmRepository(context) }
     val alarms by repository.alarms.collectAsState()
 
@@ -160,7 +162,12 @@ fun ClockAlarmDashboardScreen(context: Context) {
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(alarms, key = { it.id }) { alarm ->
-                    AlarmCard(alarm, repository, context)
+                    AlarmCard(
+                        alarm = alarm,
+                        repository = repository,
+                        context = context,
+                        onEdit = { editingAlarm = alarm }
+                    )
                 }
             }
         }
@@ -175,18 +182,47 @@ fun ClockAlarmDashboardScreen(context: Context) {
     }
 
     if (showAddAlarmDialog) {
-        AddAlarmDialog(repository, context) { showAddAlarmDialog = false }
+        AlarmEditorDialog(
+            repository = repository,
+            context = context,
+            existingAlarm = null,
+            onDismiss = { showAddAlarmDialog = false }
+        )
+    }
+
+    if (editingAlarm != null) {
+        AlarmEditorDialog(
+            repository = repository,
+            context = context,
+            existingAlarm = editingAlarm,
+            onDismiss = { editingAlarm = null }
+        )
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddAlarmDialog(repository: AlarmRepository, context: Context, onDismiss: () -> Unit) {
-    val timePickerState = rememberTimePickerState(8, 0, false)
-    var label by remember { mutableStateOf("") }
-    var repeatMode by remember { mutableStateOf(AlarmRepeatMode.DAILY) }
-    var selectedDays by remember { mutableStateOf(DayOfWeek.values().toSet()) }
-    var startDate by remember { mutableStateOf(todayAtStartOfDay()) }
+fun AlarmEditorDialog(
+    repository: AlarmRepository,
+    context: Context,
+    existingAlarm: AlarmItem?,
+    onDismiss: () -> Unit
+) {
+    val timePickerState = rememberTimePickerState(
+        initialHour = existingAlarm?.hour ?: 8,
+        initialMinute = existingAlarm?.minute ?: 0,
+        is24Hour = false
+    )
+    var label by remember(existingAlarm?.id) { mutableStateOf(existingAlarm?.label ?: "") }
+    var repeatMode by remember(existingAlarm?.id) {
+        mutableStateOf(existingAlarm?.repeatMode ?: AlarmRepeatMode.DAILY)
+    }
+    var selectedDays by remember(existingAlarm?.id) {
+        mutableStateOf(existingAlarm?.selectedDays ?: DayOfWeek.values().toSet())
+    }
+    var startDate by remember(existingAlarm?.id) {
+        mutableStateOf(existingAlarm?.everyOtherDayStartDate ?: todayAtStartOfDay())
+    }
 
     Column(
         modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.7f)).padding(16.dp),
@@ -203,7 +239,7 @@ fun AddAlarmDialog(repository: AlarmRepository, context: Context, onDismiss: () 
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Add Alarm",
+                    text = if (existingAlarm == null) "Add Alarm" else "Edit Alarm",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
@@ -320,14 +356,15 @@ fun AddAlarmDialog(repository: AlarmRepository, context: Context, onDismiss: () 
                         modifier = Modifier.weight(1f).height(48.dp),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("Cancel")
+                        Text(text = "Cancel")
                     }
                     Button(
                         onClick = {
-                            val alarm = AlarmItem(
+                            val alarmToSave = AlarmItem(
+                                id = existingAlarm?.id ?: System.currentTimeMillis(),
                                 hour = timePickerState.hour,
                                 minute = timePickerState.minute,
-                                enabled = true,
+                                enabled = existingAlarm?.enabled ?: true,
                                 repeatMode = repeatMode,
                                 selectedDays = selectedDays,
                                 everyOtherDayStartDate = startDate,
@@ -344,13 +381,13 @@ fun AddAlarmDialog(repository: AlarmRepository, context: Context, onDismiss: () 
                                     100
                                 )
                             }
-                            repository.saveAlarm(alarm)
+                            repository.saveAlarm(alarmToSave)
                             onDismiss()
                         },
                         modifier = Modifier.weight(1f).height(48.dp),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("Save")
+                        Text(text = "Save")
                     }
                 }
             }
@@ -393,12 +430,17 @@ private fun StartDatePicker(selectedDate: Long, onDateSelected: (Long) -> Unit) 
             modifier = Modifier.size(18.dp)
         )
         Spacer(modifier = Modifier.size(8.dp))
-        Text("Start date: $dateText")
+        Text(text = "Start date: $dateText")
     }
 }
 
 @Composable
-fun AlarmCard(alarm: AlarmItem, repository: AlarmRepository, context: Context) {
+fun AlarmCard(
+    alarm: AlarmItem,
+    repository: AlarmRepository,
+    context: Context,
+    onEdit: () -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -432,6 +474,14 @@ fun AlarmCard(alarm: AlarmItem, repository: AlarmRepository, context: Context) {
                 checked = alarm.enabled,
                 onCheckedChange = { repository.saveAlarm(alarm.copy(enabled = it)) }
             )
+            IconButton(onClick = onEdit) {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = "Edit Alarm",
+                    tint = Color(0xFF92D5C3),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
             IconButton(
                 onClick = {
                     AlarmScheduler.cancelAlarm(context, alarm.id)
@@ -439,8 +489,8 @@ fun AlarmCard(alarm: AlarmItem, repository: AlarmRepository, context: Context) {
                 }
             ) {
                 Icon(
-                    Icons.Default.Delete,
-                    contentDescription = "Delete",
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Delete Alarm",
                     tint = Color(0xFFFF6B6B),
                     modifier = Modifier.size(20.dp)
                 )
