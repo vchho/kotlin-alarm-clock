@@ -9,7 +9,9 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -32,6 +34,7 @@ import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -46,6 +49,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -66,12 +71,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -86,12 +93,15 @@ import java.util.Calendar
 import java.util.Locale
 
 class MainActivity : ComponentActivity() {
+    // Survives rotation, so a running timer isn't lost.
+    private val timerViewModel: TimerViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             ClockAlarmDashboardTheme {
-                ClockAlarmDashboardScreen(context = this)
+                ClockApp(context = this, timerViewModel = timerViewModel)
             }
         }
     }
@@ -130,7 +140,45 @@ fun ClockAlarmDashboardTheme(
 }
 
 // ---------------------------------------------------------------------------
-// Main screen
+// Root: bottom tab navigation (Alarms | Timer)
+// ---------------------------------------------------------------------------
+
+private enum class ClockTab(val label: String, val icon: ImageVector) {
+    Alarms("Alarms", Icons.Default.Alarm),
+    Timer("Timer", Icons.Default.Timer)
+}
+
+@Composable
+fun ClockApp(context: Context, timerViewModel: TimerViewModel) {
+    var selectedTab by rememberSaveable { mutableStateOf(ClockTab.Alarms) }
+
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        bottomBar = {
+            NavigationBar {
+                ClockTab.values().forEach { tab ->
+                    NavigationBarItem(
+                        selected = selectedTab == tab,
+                        onClick = { selectedTab = tab },
+                        icon = { Icon(tab.icon, contentDescription = null) },
+                        label = { Text(tab.label) }
+                    )
+                }
+            }
+        }
+    ) { outerPadding ->
+        // Each tab handles its own status-bar inset; only the nav bar's height is applied here.
+        Box(modifier = Modifier.padding(bottom = outerPadding.calculateBottomPadding())) {
+            when (selectedTab) {
+                ClockTab.Alarms -> ClockAlarmDashboardScreen(context = context)
+                ClockTab.Timer -> TimerScreen(viewModel = timerViewModel)
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Alarms tab
 // ---------------------------------------------------------------------------
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -162,6 +210,7 @@ fun ClockAlarmDashboardScreen(context: Context) {
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             LargeTopAppBar(
                 title = {

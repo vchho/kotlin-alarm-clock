@@ -73,3 +73,5 @@ kotlin-ide/
 .claude/settings.local.json
 **/xcuserdata
 .test-federation.*
+gradle
+.idea
