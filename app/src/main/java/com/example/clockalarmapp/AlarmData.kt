@@ -13,7 +13,20 @@ data class AlarmItem(
     val selectedDays: Set<DayOfWeek> = DayOfWeek.values().toSet(),
     val everyOtherDayStartDate: Long = System.currentTimeMillis(),
     val label: String = "",
-    val notificationMode: AlarmNotificationMode = AlarmNotificationMode.SOUND_AND_VIBRATION
+    val notificationMode: AlarmNotificationMode = AlarmNotificationMode.SOUND_AND_VIBRATION,
+    // null = not in any group
+    val groupId: Long? = null
+)
+
+/**
+ * A named collection of alarms. Turning a group off silences every alarm in it without
+ * touching each alarm's own on/off switch, so turning the group back on restores them as they were.
+ */
+data class AlarmGroup(
+    val id: Long = System.currentTimeMillis(),
+    val name: String,
+    val enabled: Boolean = true,
+    val expanded: Boolean = true
 )
 
 enum class AlarmRepeatMode {

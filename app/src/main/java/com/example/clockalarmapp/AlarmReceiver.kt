@@ -14,6 +14,11 @@ class AlarmReceiver : BroadcastReceiver() {
         val label = intent.getStringExtra("label") ?: ""
         val notificationModeName = intent.getStringExtra("notification_mode") ?: AlarmNotificationMode.SOUND_AND_VIBRATION.name
 
+        // Don't ring if the alarm (or its group) was switched off or deleted after this was scheduled.
+        val repository = AlarmRepository(context)
+        val alarm = repository.alarms.value.find { it.id == alarmId }
+        if (alarm != null && !repository.isEffectivelyEnabled(alarm)) return
+
         // Start the alarm service to play sound/vibration repeatedly
         val serviceIntent = Intent(context, AlarmService::class.java).apply {
             putExtra("alarm_id", alarmId)
@@ -30,10 +35,8 @@ class AlarmReceiver : BroadcastReceiver() {
         }
 
         // Reschedule the alarm for the next occurrence
-        val repository = AlarmRepository(context)
-        val alarm = repository.alarms.value.find { it.id == alarmId }
         if (alarm != null) {
-            AlarmScheduler.scheduleAlarm(context, alarm)
+            AlarmScheduler.scheduleAlarm(context, repository.effective(alarm))
         }
     }
 }
