@@ -207,6 +207,11 @@ fun ClockAlarmDashboardScreen(context: Context) {
     val groups by repository.groups.collectAsState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
+    // Recomputed every second (currentTime ticks) and whenever alarms/groups change.
+    val nextAlarmText = remember(alarms, groups, currentTime.value) {
+        nextAlarmCountdownText(alarms.map { repository.effective(it) })
+    }
+
     LaunchedEffect(Unit) {
         while (true) {
             currentTime.value = getCurrentTime()
@@ -297,6 +302,16 @@ fun ClockAlarmDashboardScreen(context: Context) {
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                if (nextAlarmText != null) {
+                    item(key = "next_alarm") {
+                        Text(
+                            text = nextAlarmText,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(start = 8.dp, bottom = 4.dp)
+                        )
+                    }
+                }
                 items(groups, key = { "group_${it.id}" }) { group ->
                     GroupCard(
                         group = group,
@@ -1017,6 +1032,34 @@ private fun todayAtStartOfDay(): Long = Calendar.getInstance().apply {
     set(Calendar.SECOND, 0)
     set(Calendar.MILLISECOND, 0)
 }.timeInMillis
+
+/**
+ * "Alarm in 8 hours 22 minutes" for the soonest active alarm, or null if nothing is set to ring.
+ * Expects alarms that have already been through repository.effective() so group on/off is respected.
+ */
+private fun nextAlarmCountdownText(activeAlarms: List<AlarmItem>): String? {
+    val now = System.currentTimeMillis()
+    val next = activeAlarms
+        .filter { alarm ->
+            // Skip alarms that could never fire (also avoids an endless search for the next date).
+            alarm.enabled &&
+                (alarm.repeatMode == AlarmRepeatMode.DAILY || alarm.selectedDays.isNotEmpty())
+        }
+        .minOfOrNull { AlarmScheduler.getNextTriggerTime(it) }
+        ?: return null
+
+    // Round up so e.g. 8h 21m 30s reads as "8 hours 22 minutes", matching the minute-level clock.
+    val totalMinutes = ((next - now).coerceAtLeast(0L) + 59_999L) / 60_000L
+    val hours = totalMinutes / 60
+    val minutes = totalMinutes % 60
+
+    if (hours == 0L && minutes == 0L) return "Alarm in less than a minute"
+
+    val parts = mutableListOf<String>()
+    if (hours > 0) parts += "$hours ${if (hours == 1L) "hour" else "hours"}"
+    if (minutes > 0) parts += "$minutes ${if (minutes == 1L) "minute" else "minutes"}"
+    return "Alarm in " + parts.joinToString(" ")
+}
 
 private fun getCurrentTime(): String =
     SimpleDateFormat("hh:mm:ss a", Locale.getDefault()).format(Calendar.getInstance().time)

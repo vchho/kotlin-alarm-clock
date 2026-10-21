@@ -76,7 +76,7 @@ object AlarmScheduler {
         }
     }
 
-    private fun getNextTriggerTime(alarm: AlarmItem): Long {
+    fun getNextTriggerTime(alarm: AlarmItem): Long {
         val now = Calendar.getInstance()
         val target = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, alarm.hour)
