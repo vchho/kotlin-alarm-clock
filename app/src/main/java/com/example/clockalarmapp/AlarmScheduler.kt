@@ -99,17 +99,6 @@ object AlarmScheduler {
         return target.timeInMillis
     }
 
-    fun playAlarm(context: Context, alarm: AlarmItem) {
-        when (alarm.notificationMode) {
-            AlarmNotificationMode.SOUND -> playSound(context)
-            AlarmNotificationMode.VIBRATION -> vibrate(context)
-            AlarmNotificationMode.SOUND_AND_VIBRATION -> {
-                playSound(context)
-                vibrate(context)
-            }
-        }
-    }
-
     private fun playSound(context: Context) {
         try {
             val ringtoneUri: Uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)

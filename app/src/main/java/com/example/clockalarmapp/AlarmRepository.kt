@@ -66,6 +66,15 @@ class AlarmRepository(context: Context) {
         persistAlarms(currentList)
     }
 
+    /** Puts a just-deleted alarm back at its old position in the list (used by "Undo"). */
+    fun restoreAlarm(alarm: AlarmItem, index: Int) {
+        val currentList = _alarms.value.toMutableList()
+        if (currentList.any { it.id == alarm.id }) return
+        currentList.add(index.coerceIn(0, currentList.size), alarm)
+        _alarms.value = currentList
+        persistAlarms(currentList)
+    }
+
     // ---- Groups -----------------------------------------------------------
 
     fun createGroup(name: String): AlarmGroup {

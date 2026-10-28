@@ -27,6 +27,7 @@ class AlarmService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            stopPlayback()
             stopSelf()
             return START_NOT_STICKY
         }
@@ -44,6 +45,10 @@ class AlarmService : Service() {
 
         // Must be called quickly after startForegroundService()
         startAsForeground(buildNotification(hour, minute, label))
+
+        // If another alarm is already ringing, stop it first. Otherwise its Ringtone/vibration
+        // gets orphaned when the fields are overwritten and keeps looping after Stop.
+        stopPlayback()
 
         if (mode != AlarmNotificationMode.VIBRATION) startSound()
         if (mode != AlarmNotificationMode.SOUND) startVibration()
@@ -125,9 +130,15 @@ class AlarmService : Service() {
         v.vibrate(effect, attrs)
     }
 
-    override fun onDestroy() {
+    private fun stopPlayback() {
         ringtone?.stop()
+        ringtone = null
         vibrator?.cancel()
+        vibrator = null
+    }
+
+    override fun onDestroy() {
+        stopPlayback()
         super.onDestroy()
     }
 

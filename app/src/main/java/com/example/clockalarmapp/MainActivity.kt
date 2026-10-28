@@ -7,11 +7,25 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -51,9 +65,9 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
@@ -64,6 +78,14 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SmallFloatingActionButton
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.Surface
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -75,27 +97,39 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.time.DayOfWeek
 import java.time.format.TextStyle
@@ -206,6 +240,28 @@ fun ClockAlarmDashboardScreen(context: Context) {
     val alarms by repository.alarms.collectAsState()
     val groups by repository.groups.collectAsState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    var fabMenuOpen by rememberSaveable { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+
+    // Deletes right away and offers a short "Undo" instead of asking for confirmation first.
+    val deleteAlarmWithUndo: (AlarmItem) -> Unit = { alarm ->
+        val index = repository.alarms.value.indexOfFirst { it.id == alarm.id }
+        AlarmScheduler.cancelAlarm(context, alarm.id)
+        repository.deleteAlarm(alarm.id)
+        scope.launch {
+            snackbarHostState.currentSnackbarData?.dismiss()
+            val result = snackbarHostState.showSnackbar(
+                message = "Alarm deleted",
+                actionLabel = "Undo",
+                duration = SnackbarDuration.Short
+            )
+            // Re-scheduling happens in the LaunchedEffect below once the alarm is back in the list.
+            if (result == SnackbarResult.ActionPerformed) repository.restoreAlarm(alarm, index)
+        }
+    }
+
+    BackHandler(enabled = fabMenuOpen) { fabMenuOpen = false }
 
     // Recomputed every second (currentTime ticks) and whenever alarms/groups change.
     val nextAlarmText = remember(alarms, groups, currentTime.value) {
@@ -261,90 +317,55 @@ fun ClockAlarmDashboardScreen(context: Context) {
                 scrollBehavior = scrollBehavior
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
-            Column(
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                ExtendedFloatingActionButton(
-                    onClick = { showNewGroupDialog = true },
-                    icon = { Icon(Icons.Default.CreateNewFolder, contentDescription = null) },
-                    text = { Text("New group") },
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                )
-                ExtendedFloatingActionButton(
-                    onClick = {
-                        addAlarmGroupId = null
-                        showAddAlarmSheet = true
-                    },
-                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                    text = { Text("Add alarm") }
-                )
-            }
+            AddFabMenu(
+                expanded = fabMenuOpen,
+                onExpandedChange = { fabMenuOpen = it },
+                onAddAlarm = {
+                    fabMenuOpen = false
+                    addAlarmGroupId = null
+                    showAddAlarmSheet = true
+                },
+                onAddGroup = {
+                    fabMenuOpen = false
+                    showNewGroupDialog = true
+                }
+            )
         }
     ) { innerPadding ->
-        if (alarms.isEmpty() && groups.isEmpty()) {
-            EmptyState(modifier = Modifier.padding(innerPadding))
-        } else {
-            val groupIds = groups.map { it.id }.toSet()
-            // Alarms with no group (or whose group no longer exists) are shown below the groups.
-            val ungrouped = alarms.filter { it.groupId == null || it.groupId !in groupIds }
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (alarms.isEmpty() && groups.isEmpty()) {
+                EmptyState(modifier = Modifier.padding(innerPadding))
+            } else {
+                AlarmList(
+                    alarms = alarms,
+                    groups = groups,
+                    nextAlarmText = nextAlarmText,
+                    innerPadding = innerPadding,
+                    repository = repository,
+                    onEditAlarm = { editingAlarm = it },
+                    onDeleteAlarm = deleteAlarmWithUndo,
+                    onAddAlarmToGroup = { group ->
+                        addAlarmGroupId = group.id
+                        showAddAlarmSheet = true
+                    },
+                    onRenameGroup = { renamingGroup = it },
+                    onDeleteGroup = { deletingGroup = it }
+                )
+            }
 
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                    start = 16.dp,
-                    end = 16.dp,
-                    top = innerPadding.calculateTopPadding() + 8.dp,
-                    // leave room so the last card isn't hidden behind the two FABs
-                    bottom = innerPadding.calculateBottomPadding() + 168.dp
-                ),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                if (nextAlarmText != null) {
-                    item(key = "next_alarm") {
-                        Text(
-                            text = nextAlarmText,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(start = 8.dp, bottom = 4.dp)
-                        )
-                    }
-                }
-                items(groups, key = { "group_${it.id}" }) { group ->
-                    GroupCard(
-                        group = group,
-                        groupAlarms = alarms.filter { it.groupId == group.id },
-                        repository = repository,
-                        context = context,
-                        onEditAlarm = { editingAlarm = it },
-                        onAddAlarm = {
-                            addAlarmGroupId = group.id
-                            showAddAlarmSheet = true
-                        },
-                        onRename = { renamingGroup = group },
-                        onDelete = { deletingGroup = group }
-                    )
-                }
-                if (groups.isNotEmpty() && ungrouped.isNotEmpty()) {
-                    item(key = "ungrouped_header") {
-                        Text(
-                            text = "Ungrouped",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(start = 8.dp, top = 8.dp)
-                        )
-                    }
-                }
-                items(ungrouped, key = { "alarm_${it.id}" }) { alarm ->
-                    AlarmCard(
-                        alarm = alarm,
-                        repository = repository,
-                        context = context,
-                        onEdit = { editingAlarm = alarm }
-                    )
-                }
+            // Dims the list while the FAB menu is open; tapping it closes the menu.
+            AnimatedVisibility(visible = fabMenuOpen, enter = fadeIn(), exit = fadeOut()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.32f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { fabMenuOpen = false }
+                )
             }
         }
     }
@@ -414,6 +435,242 @@ fun ClockAlarmDashboardScreen(context: Context) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun AlarmList(
+    alarms: List<AlarmItem>,
+    groups: List<AlarmGroup>,
+    nextAlarmText: String?,
+    innerPadding: PaddingValues,
+    repository: AlarmRepository,
+    onEditAlarm: (AlarmItem) -> Unit,
+    onDeleteAlarm: (AlarmItem) -> Unit,
+    onAddAlarmToGroup: (AlarmGroup) -> Unit,
+    onRenameGroup: (AlarmGroup) -> Unit,
+    onDeleteGroup: (AlarmGroup) -> Unit
+) {
+    val groupIds = groups.map { it.id }.toSet()
+    // Alarms with no group (or whose group no longer exists) are shown below the groups.
+    val ungrouped = alarms.filter { it.groupId == null || it.groupId !in groupIds }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            start = 16.dp,
+            end = 16.dp,
+            top = innerPadding.calculateTopPadding() + 8.dp,
+            // leave room so the last card isn't hidden behind the FAB
+            bottom = innerPadding.calculateBottomPadding() + 96.dp
+        ),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        if (nextAlarmText != null) {
+            item(key = "next_alarm") {
+                Text(
+                    text = nextAlarmText,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = 8.dp, bottom = 4.dp)
+                )
+            }
+        }
+        items(groups, key = { "group_${it.id}" }) { group ->
+            GroupCard(
+                group = group,
+                groupAlarms = alarms.filter { it.groupId == group.id },
+                repository = repository,
+                onEditAlarm = onEditAlarm,
+                onDeleteAlarm = onDeleteAlarm,
+                onAddAlarm = { onAddAlarmToGroup(group) },
+                onRename = { onRenameGroup(group) },
+                onDelete = { onDeleteGroup(group) },
+                modifier = Modifier.animateItemPlacement()
+            )
+        }
+        if (groups.isNotEmpty() && ungrouped.isNotEmpty()) {
+            item(key = "ungrouped_header") {
+                Text(
+                    text = "Ungrouped",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .animateItemPlacement()
+                        .padding(start = 8.dp, top = 8.dp)
+                )
+            }
+        }
+        items(ungrouped, key = { "alarm_${it.id}" }) { alarm ->
+            AlarmCard(
+                alarm = alarm,
+                repository = repository,
+                onEdit = { onEditAlarm(alarm) },
+                onDelete = { onDeleteAlarm(alarm) },
+                modifier = Modifier.animateItemPlacement()
+            )
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Floating action button menu (speed dial: new alarm / new group)
+// ---------------------------------------------------------------------------
+
+@Composable
+private fun AddFabMenu(
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    onAddAlarm: () -> Unit,
+    onAddGroup: () -> Unit
+) {
+    // "+" turns into an "x" while the menu is open.
+    val iconRotation by animateFloatAsState(if (expanded) 45f else 0f, label = "fabIconRotation")
+
+    Column(
+        horizontalAlignment = Alignment.End,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        AnimatedVisibility(
+            visible = expanded,
+            enter = fadeIn() + slideInVertically { it / 3 } + scaleIn(
+                initialScale = 0.8f,
+                transformOrigin = TransformOrigin(1f, 1f)
+            ),
+            exit = fadeOut() + slideOutVertically { it / 3 } + scaleOut(
+                targetScale = 0.8f,
+                transformOrigin = TransformOrigin(1f, 1f)
+            )
+        ) {
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                // line the small buttons up with the centre of the main FAB
+                modifier = Modifier.padding(end = 8.dp)
+            ) {
+                FabMenuItem(label = "New group", icon = Icons.Default.CreateNewFolder, onClick = onAddGroup)
+                FabMenuItem(label = "New alarm", icon = Icons.Default.Alarm, onClick = onAddAlarm)
+            }
+        }
+        FloatingActionButton(
+            onClick = { onExpandedChange(!expanded) },
+            containerColor = if (expanded) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.primaryContainer,
+            contentColor = if (expanded) MaterialTheme.colorScheme.onPrimary
+            else MaterialTheme.colorScheme.onPrimaryContainer
+        ) {
+            Icon(
+                Icons.Default.Add,
+                contentDescription = if (expanded) "Close menu" else "Add alarm or group",
+                modifier = Modifier.rotate(iconRotation)
+            )
+        }
+    }
+}
+
+@Composable
+private fun FabMenuItem(label: String, icon: ImageVector, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Surface(
+            onClick = onClick,
+            shape = MaterialTheme.shapes.small,
+            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+            shadowElevation = 2.dp
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+            )
+        }
+        SmallFloatingActionButton(
+            onClick = onClick,
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+        ) {
+            Icon(icon, contentDescription = null)
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Swipe actions: swipe right to edit, swipe left to delete
+// ---------------------------------------------------------------------------
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeActionsBox(
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    shape: Shape,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    val currentOnEdit by rememberUpdatedState(onEdit)
+    val currentOnDelete by rememberUpdatedState(onDelete)
+    val state = rememberSwipeToDismissBoxState(
+        // Both actions return false so the card springs back; deleting removes it from the list anyway.
+        confirmValueChange = { value ->
+            when (value) {
+                SwipeToDismissBoxValue.StartToEnd -> currentOnEdit()
+                SwipeToDismissBoxValue.EndToStart -> currentOnDelete()
+                SwipeToDismissBoxValue.Settled -> Unit
+            }
+            value == SwipeToDismissBoxValue.Settled
+        },
+        positionalThreshold = { totalDistance -> totalDistance * 0.35f }
+    )
+
+    SwipeToDismissBox(
+        state = state,
+        modifier = modifier,
+        backgroundContent = {
+            val direction = state.dismissDirection
+            // "Armed" = let go now and the action fires.
+            val armed = direction != SwipeToDismissBoxValue.Settled && state.targetValue == direction
+            val isDelete = direction == SwipeToDismissBoxValue.EndToStart
+            val color by animateColorAsState(
+                targetValue = when {
+                    direction == SwipeToDismissBoxValue.Settled -> Color.Transparent
+                    isDelete && armed -> MaterialTheme.colorScheme.error
+                    isDelete -> MaterialTheme.colorScheme.errorContainer
+                    armed -> MaterialTheme.colorScheme.primary
+                    else -> MaterialTheme.colorScheme.primaryContainer
+                },
+                label = "swipeBackground"
+            )
+            val iconScale by animateFloatAsState(if (armed) 1.2f else 1f, label = "swipeIconScale")
+            val iconTint = when {
+                isDelete && armed -> MaterialTheme.colorScheme.onError
+                isDelete -> MaterialTheme.colorScheme.onErrorContainer
+                armed -> MaterialTheme.colorScheme.onPrimary
+                else -> MaterialTheme.colorScheme.onPrimaryContainer
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(shape)
+                    .background(color)
+                    .padding(horizontal = 24.dp),
+                contentAlignment = if (isDelete) Alignment.CenterEnd else Alignment.CenterStart
+            ) {
+                if (direction != SwipeToDismissBoxValue.Settled) {
+                    Icon(
+                        imageVector = if (isDelete) Icons.Default.Delete else Icons.Default.Edit,
+                        contentDescription = null,
+                        tint = iconTint,
+                        modifier = Modifier.scale(iconScale)
+                    )
+                }
+            }
+        }
+    ) {
+        content()
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Groups
 // ---------------------------------------------------------------------------
@@ -423,11 +680,12 @@ private fun GroupCard(
     group: AlarmGroup,
     groupAlarms: List<AlarmItem>,
     repository: AlarmRepository,
-    context: Context,
     onEditAlarm: (AlarmItem) -> Unit,
+    onDeleteAlarm: (AlarmItem) -> Unit,
     onAddAlarm: () -> Unit,
     onRename: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val count = groupAlarms.size
@@ -437,107 +695,119 @@ private fun GroupCard(
         else -> "$count ${if (count == 1) "alarm" else "alarms"} \u00B7 ${groupAlarms.count { it.enabled }} on"
     }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
+    // Swipe right to rename, swipe left to delete (the delete dialog still asks what to do with its alarms).
+    SwipeActionsBox(
+        onEdit = onRename,
+        onDelete = onDelete,
         shape = MaterialTheme.shapes.extraLarge,
-        colors = CardDefaults.cardColors(
-            containerColor = if (group.enabled) MaterialTheme.colorScheme.surfaceContainerHigh
-            else MaterialTheme.colorScheme.surfaceContainerLow
-        )
+        modifier = modifier
     ) {
-        Column(modifier = Modifier.padding(bottom = 12.dp)) {
-            Row(
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.extraLarge,
+            colors = CardDefaults.cardColors(
+                containerColor = if (group.enabled) MaterialTheme.colorScheme.surfaceContainerHigh
+                else MaterialTheme.colorScheme.surfaceContainerLow
+            )
+        ) {
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { repository.saveGroup(group.copy(expanded = !group.expanded)) }
-                    .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .animateContentSize()
+                    .padding(bottom = 12.dp)
             ) {
-                Icon(
-                    imageVector = if (group.expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                    contentDescription = if (group.expanded) "Collapse group" else "Expand group"
-                )
-                Spacer(Modifier.size(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = group.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Switch(
-                    checked = group.enabled,
-                    onCheckedChange = { repository.setGroupEnabled(group.id, it) }
-                )
-                Box {
-                    IconButton(onClick = { menuOpen = true }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "Group options")
-                    }
-                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        DropdownMenuItem(
-                            text = { Text("Add alarm to group") },
-                            leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) },
-                            onClick = {
-                                menuOpen = false
-                                onAddAlarm()
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Rename group") },
-                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
-                            onClick = {
-                                menuOpen = false
-                                onRename()
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Delete group", color = MaterialTheme.colorScheme.error) },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Default.Delete,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.error
-                                )
-                            },
-                            onClick = {
-                                menuOpen = false
-                                onDelete()
-                            }
-                        )
-                    }
-                }
-            }
-
-            if (group.expanded) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { repository.saveGroup(group.copy(expanded = !group.expanded)) }
+                        .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (groupAlarms.isEmpty()) {
+                    Icon(
+                        imageVector = if (group.expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = if (group.expanded) "Collapse group" else "Expand group"
+                    )
+                    Spacer(Modifier.size(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "No alarms in this group yet.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 8.dp)
+                            text = group.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
-                        TextButton(onClick = onAddAlarm) { Text("Add alarm") }
-                    } else {
-                        groupAlarms.forEach { alarm ->
-                            androidx.compose.runtime.key(alarm.id) {
-                                AlarmCard(
-                                    alarm = alarm,
-                                    repository = repository,
-                                    context = context,
-                                    onEdit = { onEditAlarm(alarm) },
-                                    groupEnabled = group.enabled
-                                )
+                        Text(
+                            text = subtitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = group.enabled,
+                        onCheckedChange = { repository.setGroupEnabled(group.id, it) }
+                    )
+                    Box {
+                        IconButton(onClick = { menuOpen = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "Group options")
+                        }
+                        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Add alarm to group") },
+                                leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) },
+                                onClick = {
+                                    menuOpen = false
+                                    onAddAlarm()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Rename group") },
+                                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                                onClick = {
+                                    menuOpen = false
+                                    onRename()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Delete group", color = MaterialTheme.colorScheme.error) },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                },
+                                onClick = {
+                                    menuOpen = false
+                                    onDelete()
+                                }
+                            )
+                        }
+                    }
+                }
+
+                if (group.expanded) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (groupAlarms.isEmpty()) {
+                            Text(
+                                text = "No alarms in this group yet.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 8.dp)
+                            )
+                            TextButton(onClick = onAddAlarm) { Text("Add alarm") }
+                        } else {
+                            groupAlarms.forEach { alarm ->
+                                androidx.compose.runtime.key(alarm.id) {
+                                    AlarmCard(
+                                        alarm = alarm,
+                                        repository = repository,
+                                        onEdit = { onEditAlarm(alarm) },
+                                        onDelete = { onDeleteAlarm(alarm) },
+                                        groupEnabled = group.enabled
+                                    )
+                                }
                             }
                         }
                     }
@@ -639,7 +909,7 @@ private fun EmptyState(modifier: Modifier = Modifier) {
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            text = "Tap ?Add alarm? to set your first one.",
+            text = "Tap + to add your first alarm or group.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -654,8 +924,9 @@ private fun EmptyState(modifier: Modifier = Modifier) {
 fun AlarmCard(
     alarm: AlarmItem,
     repository: AlarmRepository,
-    context: Context,
     onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
     groupEnabled: Boolean = true
 ) {
     // An alarm only rings if both it and its group are on.
@@ -667,66 +938,61 @@ fun AlarmCard(
         if (active) MaterialTheme.colorScheme.onSecondaryContainer
         else MaterialTheme.colorScheme.onSurfaceVariant
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .alpha(if (groupEnabled) 1f else 0.6f),
+    // Swipe right to edit, swipe left to delete; tapping the card also opens the editor.
+    SwipeActionsBox(
+        onEdit = onEdit,
+        onDelete = onDelete,
         shape = MaterialTheme.shapes.extraLarge,
-        colors = CardDefaults.cardColors(
-            containerColor = containerColor,
-            contentColor = contentColor
-        )
+        modifier = modifier
     ) {
-        Column(modifier = Modifier.padding(start = 20.dp, end = 12.dp, top = 16.dp, bottom = 8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = formatClock(alarm.hour, alarm.minute),
-                        style = MaterialTheme.typography.displaySmall,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1
+        Card(
+            onClick = onEdit,
+            modifier = Modifier
+                .fillMaxWidth()
+                .alpha(if (groupEnabled) 1f else 0.6f)
+                // The swipe gestures have no visible buttons, so expose delete to TalkBack users too.
+                .semantics {
+                    customActions = listOf(
+                        CustomAccessibilityAction("Delete alarm") { onDelete(); true }
                     )
-                    if (alarm.label.isNotEmpty()) {
-                        Text(
-                            text = alarm.label,
-                            style = MaterialTheme.typography.titleSmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-                Switch(
-                    checked = alarm.enabled,
-                    onCheckedChange = { repository.saveAlarm(alarm.copy(enabled = it)) }
-                )
-                Spacer(Modifier.size(8.dp))
-            }
-            Text(
-                text = getRepeatText(alarm) + if (!groupEnabled) " \u00B7 group is off" else "",
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(end = 8.dp)
+                },
+            shape = MaterialTheme.shapes.extraLarge,
+            colors = CardDefaults.cardColors(
+                containerColor = containerColor,
+                contentColor = contentColor
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                IconButton(onClick = onEdit) {
-                    Icon(Icons.Default.Edit, contentDescription = "Edit alarm")
-                }
-                IconButton(
-                    onClick = {
-                        AlarmScheduler.cancelAlarm(context, alarm.id)
-                        repository.deleteAlarm(alarm.id)
+        ) {
+            Column(modifier = Modifier.padding(start = 20.dp, end = 12.dp, top = 16.dp, bottom = 16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = formatClock(alarm.hour, alarm.minute),
+                            style = MaterialTheme.typography.displaySmall,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1
+                        )
+                        if (alarm.label.isNotEmpty()) {
+                            Text(
+                                text = alarm.label,
+                                style = MaterialTheme.typography.titleSmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
-                ) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = "Delete alarm",
-                        tint = MaterialTheme.colorScheme.error
+                    Switch(
+                        checked = alarm.enabled,
+                        onCheckedChange = { repository.saveAlarm(alarm.copy(enabled = it)) }
                     )
+                    Spacer(Modifier.size(8.dp))
                 }
+                Text(
+                    text = getRepeatText(alarm) + if (!groupEnabled) " \u00B7 group is off" else "",
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(end = 8.dp)
+                )
             }
         }
     }
